@@ -1,0 +1,24 @@
+name: Dumper-7 Build
+on: push
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 拉取项目
+        uses: actions/checkout@v4
+
+      - name: 配置 x64 编译器
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: 构建
+        run: |
+          msbuild
+          dir x64/Debug
+      - name: 上传构建
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dumper-7.exe
+          path: x64/Debug/Dumper-7.exe
+          retention-days: 7
