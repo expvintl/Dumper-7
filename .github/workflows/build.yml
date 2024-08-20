@@ -19,6 +19,6 @@ jobs:
       - name: 上传构建
         uses: actions/upload-artifact@v4
         with:
-          name: Dumper-7.exe
-          path: x64/Debug/Dumper-7.exe
+          name: Dumper-7.dll
+          path: x64/Debug/Dumper-7.dll
           retention-days: 7
