@@ -14,11 +14,11 @@ jobs:
 
       - name: 构建
         run: |
-          msbuild
-          dir x64/Debug
+          msbuild /p:Configuration=Release /p:Platform=x64
+          dir x64/Release
       - name: 上传构建
         uses: actions/upload-artifact@v3
         with:
           name: Dumper-7.dll
-          path: x64/Debug/Dumper-7.dll
+          path: x64/Release/Dumper-7.dll
           retention-days: 7
