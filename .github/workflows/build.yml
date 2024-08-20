@@ -17,7 +17,7 @@ jobs:
           msbuild
           dir x64/Debug
       - name: 上传构建
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: Dumper-7.dll
           path: x64/Debug/Dumper-7.dll
