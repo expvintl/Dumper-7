@@ -1,31 +1,24 @@
-name: Build and Upload Artifacts
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
+name: Dumper-7 Build
+on: push
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: 拉取项目
+        uses: actions/checkout@v4
 
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
+      - name: 配置 x64 编译器
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
-    - name: Build Dumper Project
-      run: msbuild .\Dumper\Dumper.vcxproj /p:Configuration=Release /p:Platform=x64 /p:WarningLevel=0
-
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: Dumper-7_x64-Release
-        path: |
-          .\Dumper\x64\Release\Dumper*.dll
-          .\Dumper\x64\Release\Dumper*.pdb
+      - name: 构建
+        run: |
+          msbuild /p:Configuration=Release /p:Platform=x64
+          dir x64/Release
+      - name: 上传构建
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dumper-7.dll
+          path: x64/Release/Dumper-7.dll
+          retention-days: 30
