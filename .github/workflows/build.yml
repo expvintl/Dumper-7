@@ -1,59 +1,84 @@
-name: Build And Upload Artifacts
+name: Build PR 576 and Publish DLL
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - main
-    tags:
-      - "v*"
-  pull_request:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: write
 
 jobs:
   build:
+    if: github.repository == 'expvintl/Dumper-7'
     runs-on: windows-latest
-
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Import pinned PR 576 source and history
+        shell: pwsh
+        env:
+          BOOTSTRAP_SHA: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $patch = '51689568b45057402dbd3fbb55bbf1b47ea56b1c'
+          git cat-file -e "$patch^{commit}" 2>$null
+          $hasPatch = $LASTEXITCODE -eq 0
+          if ($hasPatch) {
+            git merge-base --is-ancestor $patch HEAD
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "PR 576 is already present; building checked-out source."
+              exit 0
+            }
+          }
+          $workflow = Join-Path $env:RUNNER_TEMP 'pr576-build.yml'
+          Copy-Item '.github/workflows/build.yml' $workflow
+          git remote add upstream https://github.com/Encryqed/Dumper-7.git
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot configure upstream' }
+          git fetch --no-tags upstream refs/pull/576/head
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot fetch PR 576' }
+          $actual = git rev-parse FETCH_HEAD
+          if ($actual -ne $patch) { throw "PR head changed: expected $patch, found $actual" }
+          git checkout -B main $patch
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot checkout patch source' }
+          Copy-Item $workflow '.github/workflows/build.yml' -Force
+          git config user.name 'expvintl'
+          git config user.email '16302731+expvintl@users.noreply.github.com'
+          git add .github/workflows/build.yml
+          git commit -m 'ci: build PR 576 and publish DLL artifacts and release'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot commit build workflow' }
+          git push origin HEAD:main "--force-with-lease=refs/heads/main:$env:BOOTSTRAP_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot upload imported source' }
+          git rev-parse HEAD
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Build Dumper Project
+      - name: Build Release x64
         run: msbuild .\Dumper\Dumper.vcxproj /p:Configuration=Release /p:Platform=x64 /p:WarningLevel=0
 
-      - name: Upload Build Artifacts
+      - name: Upload DLL and PDB
         uses: actions/upload-artifact@v4
         with:
-          name: Dumper-7_x64-Release
+          name: Dumper-7_PR576_x64-Release
           path: |
-            .\Dumper\x64\Release\Dumper-7.dll
-            .\Dumper\x64\Release\Dumper-7.pdb
+            Dumper/x64/Release/Dumper-7.dll
+            Dumper/x64/Release/Dumper-7.pdb
           if-no-files-found: error
 
-  release:
-    name: Create Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: windows-latest
-
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: Dumper-7_x64-Release
-          path: release-artifacts
-
-      - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: |
-            release-artifacts/Dumper-7.dll
-            release-artifacts/Dumper-7.pdb
-          artifactErrorsFailBuild: true
-          generateReleaseNotes: true
+      - name: Publish downloadable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          $sha = git rev-parse HEAD
+          $tag = "pr576-build-$env:RUN_NUMBER"
+          $notes = "Built from Encryqed/Dumper-7 PR #576, pinned patch commit 51689568b45057402dbd3fbb55bbf1b47ea56b1c. Release x64. Build logs: https://github.com/$env:GH_REPO/actions/runs/$env:RUN_ID"
+          gh release create $tag './Dumper/x64/Release/Dumper-7.dll' './Dumper/x64/Release/Dumper-7.pdb' --target $sha --title "Dumper-7 PR 576 - Release x64 (build $env:RUN_NUMBER)" --notes $notes
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot publish release' }
